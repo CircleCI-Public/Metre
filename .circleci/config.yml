@@ -35,7 +35,6 @@ commands:
             -DVENDORED_DEPS=OFF \
             -GNinja \
             ../project
-          export CMAKE_BUILD_PARALLEL_LEVEL=3
           cmake --build .
           cmake --build . --target test
           cmake --build . --target install
@@ -75,7 +74,6 @@ commands:
             -DVENDORED_DEPS=ON \
             -GNinja \
             ../project
-          export CMAKE_BUILD_PARALLEL_LEVEL=3
           cmake --build .
           cmake --build . --target install
 
