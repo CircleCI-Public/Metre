@@ -1,6 +1,7 @@
-FROM debian:sid-slim AS cpp-build
+FROM buildpack-deps:20.04-scm AS cpp-build
 
 RUN set -eux; \
+   export DEBIAN_FRONTEND=noninteractive; \
    apt-get update; \
    apt-get install --quiet --yes --no-install-recommends \
        clang \
@@ -9,7 +10,6 @@ RUN set -eux; \
        libc++-dev \
        libc++abi-dev \
        libevent-dev \
-       libexpat-dev \
        libicu-dev \
        libspdlog-dev \
        libssl-dev \

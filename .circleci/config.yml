@@ -1,9 +1,14 @@
-version: 2.0
+version: 2.1
 
-x-common:
-  - &submodule-update 'git submodule update --recursive --init deps/spiffing deps/rapidxml deps/sigslot'
-  - &apt-install >
-          apt-get update;
+commands:
+  submodule-update:
+    steps:
+      - run: git submodule update --recursive --init deps/spiffing deps/rapidxml deps/sigslot
+  apt-install:
+    steps:
+      - run: |
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
           apt-get install --quiet --yes --no-install-recommends \
               clang \
               cmake \
@@ -16,11 +21,12 @@ x-common:
               libssl-dev \
               libunbound-dev \
               ninja-build \
-              pkg-config \
-          ;
-  - &cmake-build >
-          mkdir ../build;
-          cd ../build;
+              pkg-config
+  cmake-build:
+    steps:
+      - run: |
+          mkdir ../build
+          cd ../build
           cmake \
             -DCMAKE_C_COMPILER=/usr/bin/clang \
             -DCMAKE_CXX_COMPILER=/usr/bin/clang++ \
@@ -28,16 +34,20 @@ x-common:
             -DCMAKE_BUILD_TYPE=Release \
             -DVENDORED_DEPS=OFF \
             -GNinja \
-            ../src;
-          export CMAKE_BUILD_PARALLEL_LEVEL=3;
-          cmake --build .;
-          cmake --build . --target test;
-          cmake --build . --target install;
+            ../project
+          export CMAKE_BUILD_PARALLEL_LEVEL=3
+          cmake --build .
+          cmake --build . --target test
+          cmake --build . --target install
 
-x-common-vendored:
-  - &submodule-update-vendored 'git submodule update --recursive --init'
-  - &apt-install-vendored >
-          apt-get update;
+  submodule-update-vendored:
+    steps:
+      - run: git submodule update --recursive --init
+  apt-install-vendored:
+    steps:
+      - run: |
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
           apt-get install --quiet --yes --no-install-recommends \
               build-essential \
               clang \
@@ -45,15 +55,18 @@ x-common-vendored:
               libc++-dev \
               libc++abi-dev \
               libicu-dev \
-              ninja-build \
-          ;
-  - &build-openssl-vendored >
-          cd deps/openssl;
-          ./config --prefix=/usr/local --openssldir=/etc/ssl no-shared;
-          make -j3;
-  - &cmake-build-vendored >
-          mkdir ../build;
-          cd ../build;
+              ninja-build
+  build-openssl-vendored:
+    steps:
+      - run: |
+          cd deps/openssl
+          ./config --prefix=/usr/local --openssldir=/etc/ssl no-shared
+          make -j3
+  cmake-build-vendored:
+    steps:
+      - run: |
+          mkdir ../build
+          cd ../build
           cmake \
             -DCMAKE_C_COMPILER=/usr/bin/clang \
             -DCMAKE_CXX_COMPILER=/usr/bin/clang++ \
@@ -61,27 +74,30 @@ x-common-vendored:
             -DCMAKE_BUILD_TYPE=Release \
             -DVENDORED_DEPS=ON \
             -GNinja \
-            ../src;
-          export CMAKE_BUILD_PARALLEL_LEVEL=3;
-          cmake --build .;
-          cmake --build . --target install;
+            ../project
+          export CMAKE_BUILD_PARALLEL_LEVEL=3
+          cmake --build .
+          cmake --build . --target install
 
-x-linux-shared: &linux-shared
-  working_directory: ~/src
-  steps:
-    - checkout
-    - run: *submodule-update
-    - run: *apt-install
-    - run: *cmake-build
+  linux-shared:
+    parameters:
+      after-deps:
+        type: steps
+        default: []
+    steps:
+      - checkout
+      - submodule-update
+      - apt-install
+      - steps: << parameters.after-deps >>
+      - cmake-build
 
-x-linux-shared-vendored: &linux-shared-vendored
-  working_directory: ~/src
-  steps:
-    - checkout
-    - run: *submodule-update-vendored
-    - run: *apt-install-vendored
-    - run: *build-openssl-vendored
-    - run: *cmake-build-vendored
+  linux-shared-vendored:
+    steps:
+      - checkout
+      - submodule-update-vendored
+      - apt-install-vendored
+      - build-openssl-vendored
+      - cmake-build-vendored
 
 jobs:
 
@@ -92,38 +108,28 @@ jobs:
       - image: circleci/buildpack-deps:stretch
     steps:
       - checkout
-      - run: *submodule-update
+      - submodule-update
       - setup_remote_docker
       - run:
           name: Build Docker image
           command: docker build -t $IMAGE_NAME:latest .
 
-  build-debian-sid:
-    <<: *linux-shared
+  build-ubuntu-lts:
     docker:
-      - image: buildpack-deps:sid-scm
-  
-  build-ubuntu-devel:
-    <<: *linux-shared
-    docker:
-      - image: buildpack-deps:19.04-scm
-
-  build-debian-sid-vendored:
-    <<: *linux-shared-vendored
-    docker:
-      - image: buildpack-deps:sid-scm
+      - image: buildpack-deps:20.04-scm
+    steps:
+      - linux-shared
 
   build-ubuntu-lts-vendored:
-    <<: *linux-shared-vendored
     docker:
-      - image: buildpack-deps:18.10-scm
+      - image: buildpack-deps:20.04-scm
+    steps:
+      - linux-shared-vendored
 
 workflows:
   version: 2
   build-matrix:
     jobs:
       - build-docker
-      - build-debian-sid
-      - build-ubuntu-devel
-      - build-debian-sid-vendored
+      - build-ubuntu-lts
       - build-ubuntu-lts-vendored
